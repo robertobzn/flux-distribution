@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Suivre l'argent du réseau de distribution</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:ital,opsz,wght@0,12..96,500;0,12..96,700&family=Newsreader:ital,opsz,wght@1,6..72,500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#F3F4F2;--panel:#FFFFFF;--ink:#1A222C;--muted:#5E6976;--line:#D5DAD8;--soft:#EBEEEC;
+  --n-tarif:#2F5BEA;--n-fiscal:#C7861A;--n-aide:#8A55C8;--n-contrat:#12866E;--n-redevance:#3E9DB5;
+  --n-dividende:#C93C59;--n-marche:#8A94A1;--n-emploi:#A3ADB6;--n-investissement:#5E8B2E;--n-dette:#7A5C3E;--t-investissement:#5E8B2E;--t-poste:#8FB36A;--t-financeur:#7A5C3E;--n-tresorerie:#9C8A1E;
+  --t-payeur:#1A222C;--t-collecteur:#66717F;--t-gestionnaire:#2F5BEA;--t-beneficiaire:#12866E;--t-autre:#9B6A3C;--t-emploi:#A3ADB6;
+  --p1:#2F5BEA;--p2:#C7861A;--p3:#12866E;--p4:#C93C59;--p5:#8A55C8;--p6:#8A94A1;
+  --blend:multiply;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#101419;--panel:#171D24;--ink:#E4E9EE;--muted:#9AA5B1;--line:#2E3843;--soft:#212931;
+  --n-tarif:#6E8EFF;--n-fiscal:#E3A440;--n-aide:#B48AF0;--n-contrat:#3FC1A0;--n-redevance:#6CC6DC;
+  --n-dividende:#F06C88;--n-marche:#A3ACB8;--n-emploi:#66717D;--n-investissement:#9BC46A;--n-dette:#C9A27A;--t-investissement:#9BC46A;--t-poste:#6E8F4E;--t-financeur:#C9A27A;--n-tresorerie:#D4C25A;
+  --t-payeur:#E4E9EE;--t-collecteur:#9AA5B1;--t-gestionnaire:#6E8EFF;--t-beneficiaire:#3FC1A0;--t-autre:#D49A62;--t-emploi:#66717D;
+  --p1:#6E8EFF;--p2:#E3A440;--p3:#3FC1A0;--p4:#F06C88;--p5:#B48AF0;--p6:#A3ACB8;--blend:screen;
+}}
+:root[data-theme="dark"]{
+  --bg:#101419;--panel:#171D24;--ink:#E4E9EE;--muted:#9AA5B1;--line:#2E3843;--soft:#212931;
+  --n-tarif:#6E8EFF;--n-fiscal:#E3A440;--n-aide:#B48AF0;--n-contrat:#3FC1A0;--n-redevance:#6CC6DC;
+  --n-dividende:#F06C88;--n-marche:#A3ACB8;--n-emploi:#66717D;--n-investissement:#9BC46A;--n-dette:#C9A27A;--t-investissement:#9BC46A;--t-poste:#6E8F4E;--t-financeur:#C9A27A;--n-tresorerie:#D4C25A;
+  --t-payeur:#E4E9EE;--t-collecteur:#9AA5B1;--t-gestionnaire:#6E8EFF;--t-beneficiaire:#3FC1A0;--t-autre:#D49A62;--t-emploi:#66717D;
+  --p1:#6E8EFF;--p2:#E3A440;--p3:#3FC1A0;--p4:#F06C88;--p5:#B48AF0;--p6:#A3ACB8;--blend:screen;
+}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 "Atkinson Hyperlegible",system-ui,sans-serif}
+button{font:inherit}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--n-tarif);outline-offset:2px}
+
+/* En-tête */
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 28px;padding:14px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+h1{margin:0;font-family:"Bricolage Grotesque",system-ui,sans-serif;font-weight:700;font-size:clamp(22px,2.4vw,30px);line-height:1.05;letter-spacing:-.015em}
+h1 em{font-family:"Newsreader",Georgia,serif;font-style:italic;font-weight:500;letter-spacing:0}
+.tag{margin:3px 0 0;color:var(--muted);font-size:13px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{border:0;border-right:1px solid var(--line);background:var(--panel);color:var(--muted);padding:5px 11px;font-size:13px;cursor:pointer;line-height:1.15;text-align:center}
+.seg button:last-child{border-right:0}
+.seg button small{display:block;font-size:10.5px;opacity:.75}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:5px 11px;border-radius:6px;font-size:13px;cursor:pointer}
+.btn:hover{border-color:var(--ink)}
+.btn .count{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:9px;background:var(--soft);font-size:11px;text-align:center}
+.btn.primary{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.btn.danger{color:var(--n-dividende)}
+.btn[aria-pressed="true"]{background:var(--n-tarif);border-color:var(--n-tarif);color:#fff}
+
+/* Corps : légende + canevas */
+.body{display:grid;grid-template-columns:270px minmax(0,1fr);height:calc(100vh - 74px);min-height:600px}
+.side{border-right:1px solid var(--line);background:var(--panel);overflow:auto;padding:4px 16px 20px}
+.side section{padding:14px 0;border-bottom:1px solid var(--line)}
+.side section:last-child{border-bottom:0}
+.side h2{margin:0 0 4px;font-family:"Bricolage Grotesque",sans-serif;font-size:15px;font-weight:700}
+.side .scope{margin:0 0 10px;font-size:12px;color:var(--muted)}
+.sum{display:grid;grid-template-columns:1fr auto;gap:5px 10px;font-size:13px;margin:0}
+.sum dt{color:var(--muted)}.sum dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+.sum dd small{font-weight:400;color:var(--muted)}
+.leg{display:grid;gap:5px;font-size:13px}
+.leg button,.leg div{display:flex;align-items:center;gap:9px;border:0;background:none;color:var(--ink);padding:2px 0;text-align:left;cursor:pointer}
+.leg div{cursor:default}
+.leg button[aria-pressed="false"]{opacity:.35;text-decoration:line-through}
+.leg i{flex:0 0 auto;width:14px;height:14px;border-radius:3px}
+.leg i.bar{width:5px;height:16px;border-radius:1px}
+.rel{display:grid;grid-template-columns:34px 1fr;gap:7px 10px;font-size:12.5px;align-items:center}
+.rel b{font-weight:700;display:block;font-size:13px}
+.rel span{color:var(--muted)}
+.sw{width:34px;height:0;border-top:7px solid var(--n-tarif)}
+.sw.texte{opacity:.9}.sw.officiel{opacity:.65}.sw.estimation{opacity:.42}.sw.faible{opacity:.25}.sw.nc{border-top:3px dashed var(--muted)}
+
+.stage{position:relative;overflow:hidden;background:var(--bg)}
+.stage svg{display:block;width:100%;height:100%;cursor:grab;touch-action:none}
+.stage svg:active{cursor:grabbing}
+.cols{position:absolute;top:10px;left:0;right:0;display:flex;justify-content:space-around;font-size:11.5px;color:var(--muted);pointer-events:none}
+.help{position:absolute;left:14px;bottom:12px;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--muted);pointer-events:none;max-width:calc(100% - 28px)}
+kbd{font:11px/1 ui-monospace,Menlo,Consolas,monospace;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:2px 5px;background:var(--panel);color:var(--ink);margin-right:3px}
+.edit-on .stage{box-shadow:inset 0 0 0 2px var(--n-tarif)}
+
+.lk{fill:none;mix-blend-mode:var(--blend);cursor:pointer;transition:stroke-opacity .15s}
+.lk.texte{stroke-opacity:.62}.lk.officiel{stroke-opacity:.5}.lk.estimation{stroke-opacity:.36}.lk.faible{stroke-opacity:.24}
+.lk.nc{stroke-dasharray:5 4;stroke-opacity:.7}
+svg.hl .lk{stroke-opacity:.08}
+svg.hl .lk.on,.lk.pinned{stroke-opacity:.9}
+.nd rect{cursor:ns-resize}
+.nd text,.ll{fill:var(--ink);paint-order:stroke;stroke:var(--bg);stroke-width:4px;stroke-linejoin:round;pointer-events:none}
+.nd .nl{font-weight:700;font-size:13px}
+.nd .nv{font-size:12px;fill:var(--muted)}
+.ll{font-size:11px}
+svg.hl .nd:not(.on){opacity:.3}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--panel);padding:8px 10px;border-radius:5px;font-size:12.5px;max-width:300px;opacity:0;transition:opacity .1s;z-index:6}
+.tip b{display:block;font-size:13px}
+
+/* Fiches épinglées flottantes */
+.pins{position:absolute;inset:0;pointer-events:none;z-index:4}
+.card{position:absolute;width:310px;max-height:62%;overflow:auto;pointer-events:auto;background:var(--panel);border:1px solid var(--line);border-top:5px solid var(--muted);border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.14);padding:0 14px 12px}
+.card .grip{position:sticky;top:0;background:var(--panel);padding:10px 22px 6px 0;cursor:move;touch-action:none;user-select:none}
+.card h4{margin:0;font-size:14px;line-height:1.3}
+.card .route{font-size:12px;color:var(--muted);margin-top:2px}
+.card .amt{font-family:"Bricolage Grotesque",sans-serif;font-size:24px;font-weight:700;line-height:1.1;margin-top:6px}
+.card .amt small{font-family:"Atkinson Hyperlegible",sans-serif;font-size:12px;font-weight:400;color:var(--muted);margin-left:6px}
+.card dl{display:grid;grid-template-columns:88px 1fr;gap:6px 10px;font-size:12.5px;margin:10px 0 0}
+.card dt{color:var(--muted)}.card dd{margin:0;white-space:pre-line}
+.card a{color:var(--n-tarif);word-break:break-word}
+.card .x{position:absolute;top:8px;right:8px;border:0;background:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;z-index:1}
+
+/* Éditeur */
+.drawer{position:absolute;top:0;right:0;bottom:0;width:min(380px,100%);background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding:16px;z-index:5;box-shadow:-6px 0 24px rgba(0,0,0,.1)}
+.drawer h2{margin:0 0 12px;font-family:"Bricolage Grotesque",sans-serif;font-size:17px}
+form.ed{display:grid;gap:10px}
+form.ed label{display:grid;gap:3px;font-size:12px;color:var(--muted)}
+form.ed input,form.ed select,form.ed textarea{font:inherit;font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:6px 8px;width:100%}
+form.ed textarea{min-height:60px;resize:vertical}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+
+/* Pied et tableau */
+.legal{padding:10px 20px;border-top:1px solid var(--line);background:var(--panel);font-size:12px;color:var(--muted)}
+.tablebox{padding:18px 20px 40px;overflow-x:auto}
+.tablebox h2{font-family:"Bricolage Grotesque",sans-serif;font-size:17px;margin:0 0 10px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:860px;background:var(--panel)}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:400;cursor:pointer;white-space:nowrap;user-select:none}
+td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+tbody tr{cursor:pointer}tbody tr:hover{background:var(--soft)}
+tbody tr.off{opacity:.45}
+.dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px}
+dialog{border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);width:min(760px,92vw);padding:18px}
+dialog::backdrop{background:rgba(0,0,0,.4)}
+dialog textarea{width:100%;height:50vh;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:8px}
+dialog h2{margin:0 0 10px;font-family:"Bricolage Grotesque",sans-serif;font-size:18px}
+.msg{font-size:13px;color:var(--muted);min-height:1.2em}
+
+@media (max-width:900px){
+  .body{grid-template-columns:1fr;height:auto}
+  .stage{height:78vh;min-height:520px}
+  .side{border-right:0;border-top:1px solid var(--line);order:2}
+  .pins{position:static;padding:10px;display:grid;gap:10px;background:var(--bg)}
+  .card{position:relative!important;left:auto!important;top:auto!important;width:auto;max-height:none}
+  .card .grip{cursor:default}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+<header class="top">
+  <div>
+    <h1>Suivre l'argent du <em>réseau de distribution</em></h1>
+    <p class="tag">Chaque euro, du consommateur aux gestionnaires de réseau et aux collectivités, année 2025</p>
+  </div>
+  <div class="bar">
+    <div class="seg" role="group" aria-label="Niveau de détail">
+      <button data-view="synthese" aria-pressed="false">Synthèse<small>flux entre acteurs</small></button>
+      <button data-view="detail" aria-pressed="true">Détail<small>+ emplois et investissements</small></button>
+    </div>
+    <div class="seg" role="group" aria-label="Couleur des flux">
+      <button data-color="nature" aria-pressed="true">Nature juridique</button>
+      <button data-color="payeur" aria-pressed="false">Payeur final</button>
+    </div>
+    <div class="seg" role="group" aria-label="Échelle">
+      <button data-scale="linear" aria-pressed="false">Linéaire</button>
+      <button data-scale="sqrt" aria-pressed="true">√</button>
+    </div>
+    <button class="btn" id="resetView">Réinitialiser la disposition</button>
+    <button class="btn" id="clearPins">Retirer les fiches<span class="count" id="pinCount">0</span></button>
+    <button class="btn" id="editToggle" aria-pressed="false">Modifier les données</button>
+  </div>
+</header>
+
+<div class="body">
+  <aside class="side" id="side"></aside>
+  <section class="stage" id="stage">
+    <div class="cols"><span>Payeurs</span><span>Collecteurs</span><span>Gestionnaires</span><span>Fonds et emplois</span><span>Bénéficiaires</span><span>Investissement</span><span>Postes</span></div>
+    <svg id="viz" role="img" aria-label="Diagramme de Sankey des flux financiers de la distribution d'électricité"></svg>
+    <div class="tip" id="tip"></div>
+    <div class="pins" id="pins"></div>
+    <div id="drawer"></div>
+    <div class="help"><span><kbd>molette</kbd>zoom</span><span><kbd>glisser</kbd>déplacer la vue</span><span><kbd>survol</kbd>flux ou acteur</span><span><kbd>clic</kbd>épingler une fiche</span><span>Les fiches et les acteurs se déplacent à la souris</span></div>
+  </section>
+</div>
+<div class="legal">Code de l'énergie (art. L342-1 et s.) ; délibérations CRE n° 2025-78 (TURPE 7 HTA-BT) et 2026-105 (revenu autorisé définitif 2025) ; comptes sociaux Enedis 2025 ; comptes CNIEG 2025 ; RAP 2025 du CAS FACÉ ; arrêtés de réfaction 2017, 2022, 2023 ; modèle national de cahier des charges de concession FNCCR-ENEDIS. Montants 2025 en M€ (réalisé, ou trajectoire CRE 2025 lorsque précisé dans la fiche).</div>
+
+<section class="tablebox">
+  <h2>Tous les flux <span class="actions" id="dataActions"><button class="btn" id="exportBtn">Exporter</button><button class="btn" id="importBtn">Importer</button><button class="btn danger" id="resetData">Données d'origine</button></span></h2>
+  <table><thead><tr>
+    <th data-sort="id">N°</th><th data-sort="nom">Flux</th><th data-sort="route">De → vers</th><th data-sort="nature">Nature</th>
+    <th data-sort="montant" style="text-align:right">Montant (M€)</th><th data-sort="annee">Année</th><th data-sort="fiabilite">Fiabilité</th><th data-sort="payeur">Payeur final</th>
+  </tr></thead><tbody id="tbody"></tbody></table>
+</section>
+</div>
+
+<dialog id="dlg">
+  <h2 id="dlgTitle"></h2>
+  <p class="msg" id="dlgMsg"></p>
+  <textarea id="dlgText" spellcheck="false"></textarea>
+  <div class="actions" style="margin-top:10px;justify-content:flex-end">
+    <button class="btn" id="dlgClose">Fermer</button>
+    <button class="btn primary" id="dlgOk"></button>
+  </div>
+</dialog>
+
+<script>
+const NATURES={
+  marche:"Prix de marché",tarif:"Tarif régulé",fiscal:"Impôt / taxe",aide:"Aide / compensation",
+  contrat:"Contractuel (concession)",redevance:"Redevance domaniale",dividende:"Dividendes",emploi:"Emploi du revenu autorisé",investissement:"Investissement",dette:"Emprunt",tresorerie:"Trésorerie de groupe"
+};
+const TYPES={payeur:"Payeur",collecteur:"Collecteur",gestionnaire:"Gestionnaire de réseau",beneficiaire:"Collectivité bénéficiaire",autre:"Autre bénéficiaire",emploi:"Emploi du revenu",financeur:"Financeur",investissement:"Investissement",poste:"Poste d'investissement"};
+const FIAB={texte:"Très haute : explicite dans un texte juridique",officiel:"Haute : officiel ou recalculé",estimation:"Moyenne : déduit de rapports",faible:"Faible : ordre de grandeur (≈)",nc:"Non chiffré"};
+const S={
+  cre7:{label:"Délibération CRE TURPE 7 HTA-BT (2025-78)",url:"https://www.cre.fr/fileadmin/Documents/Deliberations/2025/250313_2025-78_Post-CSE_TURPE_7_HTA-BT.pdf"},
+  crcp:{label:"Délibération CRE solde CRCP TURPE 6 (2025-134)",url:"https://www.cre.fr/fileadmin/Documents/Deliberations/2025/250603_2025-134_Solde_definitif_CRCP_TURPE_6.pdf"},
+  creEco:{label:"CRE, Économie du système électrique français (2026)",url:"https://www.cre.fr/fileadmin/Documents/Rapports_et_etudes/2026/CRE_Economie_du_systeme_electrique_francais.pdf"},
+  t33:{label:"Délibération CRE 2025-78, tableau 33 p. 99 (charges de capital)",url:"https://www.cre.fr/fileadmin/Documents/Deliberations/2025/250313_2025-78_Post-CSE_TURPE_7_HTA-BT.pdf"},
+  t30:{label:"Délibération CRE 2025-78, tableau 30 p. 98 (investissements)",url:"https://www.cre.fr/fileadmin/Documents/Deliberations/2025/250313_2025-78_Post-CSE_TURPE_7_HTA-BT.pdf"},
+  enedisInv:{label:"Enedis, Moderniser le réseau (5,7 Md€ investis en 2025)",url:"https://www.enedis.fr/nos-missions/moderniser-le-reseau"},
+  bei25:{label:"BEI, communiqué 2025 (500 M€, phase 2)",url:"https://www.eib.org/fr/press/all/2025-323-edf-and-the-eib-announce-the-signature-of-eur500-million-financing-contract-to-support-the-modernisation-and-the-resilience-of-enedis-managed-public-electricity-grid"},
+  bei22:{label:"BEI, communiqué 2022 (800 M€)",url:"https://www.eib.org/fr/press/all/2022-243-edf-et-la-bei-annoncent-la-signature-d-un-contrat-de-pret-de-800-millions-d-euros-au-service-de-la-transition-energetique-du-reseau-de-distribution-electrique-gere-par-enedis"},
+  fnccr26:{label:"FNCCR, La FNCCR alerte sur une baisse des financements",url:"https://www.fnccr.asso.fr/actualites/la-fnccr-alerte-sur-une-baisse-des-financements/"},
+  fnccr23:{label:"FNCCR, Les syndicats d'énergie, fer de lance de la transition énergétique",url:"https://www.fnccr.asso.fr/article/les-syndicats-de-lenergie-fer-de-lance-de-la-transition-energetique/"},
+  hespul:{label:"Hespul, Chiffres clés et synthèse des flux monétaires",url:"https://reseaux.photovoltaique.info/fr/decrypter-le-jeu-dacteurs/financement-des-reseaux-publics/financement-des-reseaux/chiffres-cles-et-synthese-des-flux-monetaires/"},
+  cdc13:{label:"Cour des comptes, Les concessions de distribution d'électricité (2013)",url:"https://www.ccomptes.fr/sites/default/files/EzPublish/2_1_concessions_distribution_electricite.pdf"},
+  cpt24:{label:"Enedis, comptes sociaux 2024",url:"https://www.pappers.fr/entreprise/enedis-444608442/comptes/ENEDIS%20-%20Comptes%20sociaux%202024%2027-05-2025.pdf"},
+  cpt25:{label:"Enedis, comptes sociaux 2025",url:"https://www.pappers.fr/entreprise/enedis-444608442/comptes/ENEDIS%20-%20Comptes%20sociaux%202025%2006-05-2026.pdf"},
+  d105:{label:"Délibération CRE n° 2026-105 (revenu autorisé définitif 2025, annexe 1)",url:"https://www.cre.fr/fileadmin/Documents/Deliberations/2026/260521_2026-105_Evolution_TURPE_7_HTA-BT.pdf"},
+  cnieg25:{label:"CNIEG, comptes de l'exercice 2025 (section contribution tarifaire, p. 46)",url:"https://www.cnieg.fr/files/live/sites/portail/files/documents/Institutionnel/I_RCF_2025.pdf"},
+  face25:{label:"Rapport annuel de performances 2025 du CAS FACÉ",url:"https://www.assemblee-nationale.fr/dyn/dyn/contenu/visualisation/1109856/file/Financement_aides_collectivites_electrification_rurale_YK.pdf"},
+  edf25:{label:"EDF, communiqué résultats annuels 2025",url:"https://www.edf.fr/groupe-edf/espaces-dedies/journalistes/tous-les-communiques-de-presse/resultats-annuels-2025"},
+  sieml:{label:"Siéml, réforme de la fiscalité électrique (part communale)",url:"https://www.sieml.fr/reforme-de-la-fiscalite-electrique-de-la-tccfe-a-la-part-communale-de-la-ticfe/"},
+  eldwiki:{label:"Wikipédia, Entreprise locale de distribution d'électricité et de gaz (France)",url:"https://fr.wikipedia.org/wiki/Entreprise_locale_de_distribution_d'%C3%A9lectricit%C3%A9_et_de_gaz_en_France"},
+  fnccrFU:{label:"FNCCR et France urbaine, contribution en vue du CSE du 27 mars",url:"https://www.fnccr.asso.fr/actualites/contribution-fnccr-france-urbaine-en-vue-de-la-seance-du-cse-du-27-03/"},
+  cdcBud25:{label:"Cour des comptes, Le budget de l'État en 2025 : résultats et gestion (avril 2026)",url:"https://www.vie-publique.fr/files/rapport/pdf/302978.pdf"},
+  inseePop:{label:"INSEE, populations de référence 2023 en vigueur au 1er janvier 2026 (fichier d'ensemble)",url:"https://www.insee.fr/fr/statistiques/8680726?sommaire=8681011"},
+  rodpCom:{label:"Légifrance, CGCT, plafonds de RODP des communes (art. R2333-105)",url:"https://www.legifrance.gouv.fr/codes/section_lc/LEGITEXT000006070633/LEGISCTA000006192858/"},
+  rodpDep:{label:"Légifrance, CGCT, plafond de RODP des départements (art. R3333-4)",url:"https://www.legifrance.gouv.fr/codes/id/LEGIARTI000030404013/2015-03-28"},
+  rodp26:{label:"Hérault Énergies, guide RODP 2026 (coefficient 1,5983)",url:"https://www.herault-energies.fr/sites/default/files/2026-03/guide_rodp_2026_-_he34.pdf"},
+  cahier:{label:"Modèle de cahier des charges de concession",url:"https://www.sieml.fr/wp-content/uploads/2018/01/2-Mod%C3%A8le-cahier-des-charges_Vdef.pdf"}
+};
+const DEFAULT={
+nodes:[
+ {id:"conso",label:"Consommateurs",type:"payeur",col:0,desc:"Ménages, entreprises, collectivités. Payeurs in fine de la quasi-totalité des flux, directement (facture, taxes) ou indirectement via le TURPE."},
+ {id:"demandeurs",label:"Demandeurs de raccordement",type:"payeur",col:0,desc:"Consommateurs, producteurs EnR, opérateurs de bornes de recharge, aménageurs. Ils paient la part du raccordement non couverte par la réfaction."},
+ {id:"bei",label:"Prêteurs du groupe EDF (obligations vertes, BEI)",type:"financeur",col:0,desc:"Investisseurs obligataires et Banque européenne d'investissement. EDF lève ces fonds et les reprête à Enedis : tous les emprunts d'Enedis sont émis via EDF, à taux fixe (comptes 2025, note 22)."},
+ {id:"tiers",label:"Tiers et concédants (participations)",type:"financeur",col:0,desc:"Collectivités, autorités concédantes, aménageurs ou autres tiers qui participent au financement d'ouvrages concédés construits par Enedis. Détail des contributeurs non publié."},
+ {id:"etat",label:"État",type:"collecteur",col:1,desc:"Perçoit l'accise sur l'électricité (8 200 M€ en 2025) et la TVA. En reverse une part aux collectivités et, depuis août 2025, une fraction au CAS FACÉ."},
+ {id:"fournisseurs",label:"Fournisseurs",type:"collecteur",col:1,desc:"Collectent le TURPE via la facture et le reversent au gestionnaire de réseau. Les gros consommateurs sous contrat CARD et les producteurs paient directement le GRD."},
+ {id:"edf_pret",label:"EDF (financement du groupe)",type:"financeur",col:1,desc:"EDF lève la dette du groupe et la reprête à Enedis. Nœud distinct d'« EDF (actionnaire) » pour ne pas créer de boucle dans le diagramme."},
+ {id:"prod",label:"Producteurs (approvisionnement)",type:"autre",col:2,desc:"Producteurs d'électricité rémunérés via les marchés de gros et l'ARENH (jusqu'au 31 décembre 2025). Hors périmètre du réseau de distribution ; représentés pour boucler la facture."},
+ {id:"budget",label:"Budget général de l'État",type:"autre",col:2,desc:"Part de l'accise sans affectation : elle finance l'ensemble des dépenses de l'État, sans lien juridique avec le système électrique (principe d'universalité budgétaire)."},
+ {id:"zni",label:"Péréquation tarifaire des ZNI (CSPE)",type:"autre",col:2,desc:"Compensation des surcoûts de production et d'acheminement dans les zones non interconnectées, financée depuis août 2025 par une fraction d'accise."},
+ {id:"cnieg",label:"CNIEG",type:"autre",col:2,desc:"Caisse nationale des industries électriques et gazières, financée par la contribution tarifaire d'acheminement (CTA). Excédent de la section CTA en 2025 : 933 M€."},
+ {id:"enedis",label:"ENEDIS",type:"gestionnaire",col:2,desc:"Gestionnaire du réseau de distribution sur environ 95 % du territoire métropolitain, filiale d'EDF.\nRevenu autorisé définitif 2025 : 17 651,2 M€ ; recettes tarifaires perçues : 17 173,8 M€. Le solde du CRCP au 1er janvier 2026 (494,5 M€) sera restitué à Enedis via le TURPE (délib. 2026-105).\nRésultat net 2025 : 1 714 M€ ; EBITDA 2025 : 6 379 M€ (EDF).\nBilan fin 2025 : capitaux propres 6 944 M€, droits du concédant 40 969 M€, provisions 13 643 M€, emprunts et dettes financières 6 377 M€."},
+ {id:"eld",label:"ELD (entreprises locales de distribution)",type:"gestionnaire",col:2,desc:"Régies municipales ou intercommunales, SEM et SICAE qui gèrent le réseau hors zone Enedis. Au 1er janvier 2024 : 132 ELD (110 en électricité, 5 en gaz, 17 mixtes), sur environ 5 % du territoire et près de 2 800 communes (source : Wikipédia, d'après les fédérations). Les plus grandes : Électricité de Strasbourg, Sorégies, Séolis, Gédia, Vialis.\nLeurs clients paient le même TURPE péréqué ; les ELD dont les coûts dépassent les recettes reçoivent le FPE. Aucun montant agrégé de leurs recettes ou investissements n'est disponible dans les documents réunis."},
+ {id:"face",label:"CAS FACÉ",type:"collecteur",col:3,desc:"Compte d'affectation spéciale de financement des aides aux collectivités pour l'électrification rurale. Recettes 2025 : 377 M€ ; crédits de paiement consommés : 374,6 M€ (RAP 2025)."},
+ {id:"rte",label:"RTE",type:"autre",col:3,desc:"Gestionnaire du réseau de transport. Enedis lui paie le TURPE HTB pour les soutirages de ses postes sources."},
+ {id:"pertes",label:"Achat des pertes (marché)",type:"autre",col:3,desc:"Électricité achetée par Enedis pour compenser les pertes du réseau (taux provisoire de 6,93 % en 2024)."},
+ {id:"u_exp",label:"Charges d'exploitation",type:"emploi",col:3,desc:"Personnel, achats, sous-traitance, systèmes d'information, etc., couverts par le tarif."},
+ {id:"u_rem",label:"Rémunération du capital",type:"emploi",col:3,desc:"Marge sur actif, rémunération des capitaux propres régulés, des emprunts et des immobilisations en cours. En 2025, Enedis a versé 834 M€ d'impôt sur les sociétés et 141 M€ de charges financières, et 448 M€ de dividendes ; le reste est conservé."},
+ {id:"u_linky",label:"Charges de capital Linky",type:"emploi",col:3,desc:"Rémunération (7,25 % + prime) et amortissement de la BAR Linky."},
+ {id:"u_crcp",label:"Apurement du CRCP TURPE 6",type:"emploi",col:3,desc:"Rattrapage des écarts accumulés pendant le TURPE 6 (crise des prix de l'énergie)."},
+ {id:"u_crl",label:"Compte régulé de lissage (Linky)",type:"emploi",col:3,desc:"Apurement progressif du coût différé du déploiement Linky, jusqu'en 2030."},
+ {id:"communes",label:"Communes, EPCI, départements",type:"beneficiaire",col:3,desc:"Bénéficiaires de la part communale et départementale de l'accise (lorsqu'elle n'est pas perçue par le syndicat), de la fiscalité locale d'Enedis et de la RODP."},
+ {id:"aode",label:"AODE (syndicats d'énergie)",type:"beneficiaire",col:4,desc:"Autorités organisatrices de la distribution, propriétaires des réseaux et concédantes. Maîtres d'ouvrage d'une partie des travaux, surtout en zone rurale.\nAu bilan d'Enedis fin 2025, les biens en concession ont une contrevaleur de 58 184 M€ et les droits du concédant atteignent 40 969 M€ (note 19).\nÀ vérifier en entretien : la FNCCR et France urbaine affirment que les AODE concourent à plus de 25 % des investissements, alors que la carte donne environ 12 % (800 M€ face à 5,7 Md€ pour Enedis). Le périmètre retenu par la FNCCR est à préciser."},
+ {id:"fpe",label:"Distributeurs des zones non interconnectées",type:"autre",col:4,desc:"EDF SEI (Corse et outre-mer), Électricité de Mayotte, EEWF (Wallis-et-Futuna), bénéficiaires du FPE."},
+ {id:"edf",label:"EDF (actionnaire)",type:"autre",col:4,desc:"Actionnaire unique d'Enedis."},
+ {id:"inv",label:"Investissements dans le réseau",type:"investissement",col:5,desc:"Investissements d'Enedis (5,7 Md€ réalisés en 2025 selon Enedis ; 5 827,5 M€ prévus par la CRE pour 2025 ; 5 566 M€ d'acquisitions décaissées au tableau de flux) et des AODE (environ 800 M€/an)."},
+ {id:"i_racc",label:"Raccordement et renforcement",type:"poste",col:6,desc:"Raccordements EnR et IRVE, renforcements liés au plan de tension et à la résilience."},
+ {id:"i_renouv",label:"Renouvellement, qualité, modernisation",type:"poste",col:6,desc:"Renouvellement des postes HTA/BT, postes sources et équipements, résilience climatique."},
+ {id:"i_outils",label:"Outils de travail et moyens d'exploitation",type:"poste",col:6,desc:"Systèmes d'information, immobilier, véhicules."},
+ {id:"i_regl",label:"Contraintes réglementaires",type:"poste",col:6,desc:"Modifications et déplacements d'ouvrages, sécurité, environnement."},
+ {id:"i_eld",label:"Investissements des ELD",type:"poste",col:6,desc:"Investissements sur les réseaux des ELD. Non chiffrés."},
+ {id:"i_aode",label:"Travaux sous maîtrise d'ouvrage des AODE",type:"poste",col:6,desc:"Extensions, renforcements, enfouissement et sécurisation, surtout en zone rurale."}
+],
+flows:[
+ {id:"1",nom:"Facture d'électricité hors taxes",source:"conso",target:"fournisseurs",nature:"marche",cadre:"Offres de marché et tarifs réglementés de vente.",montant:51600,affichage:null,annee:"2025",fiabilite:"officiel",payeur:"Consommateurs",precisions:"Somme des composantes publiées par la CRE pour 2025 : part énergie 27,9 Md€ ; part réseau (transport et distribution) 18,5 Md€, dont pertes 2,8 Md€, équilibrage 0,7 Md€ et rattrapages 2,2 Md€ ; frais de fourniture 3,4 Md€ (commercialisation 1,8 Md€, risque d'approvisionnement 1,6 Md€) ; certificats d'économies d'énergie 1,8 Md€.\nL'accise et la CTA sont représentées par des flux distincts ; la TVA n'est pas chiffrée.\nLa CRE précise qu'il s'agit d'une modélisation (approvisionnement lissé sur un an et ARENH), qui ne reflète pas exactement la facture réelle.",sources:[S.creEco]},
+ {id:"1b",nom:"Part énergie de la facture",source:"fournisseurs",target:"prod",nature:"marche",cadre:"Marchés de gros et ARENH (42 €/MWh pour 215 TWh en 2025).",montant:27900,affichage:null,annee:"2025",fiabilite:"officiel",payeur:"Consommateurs",precisions:"Approvisionnement 26,8 Md€, mécanisme de capacité 0,75 Md€, écarts 0,3 Md€ (CRE). Les frais de fourniture (3,4 Md€) et les CEE (1,8 Md€) restent chez les fournisseurs ou leurs obligés et ne sont pas détaillés ici.",sources:[S.creEco]},
+ {id:"2",nom:"TURPE distribution",source:"fournisseurs",target:"enedis",nature:"tarif",cadre:"Tarif régulé fixé par la CRE (TURPE 6 puis TURPE 7 HTA-BT au 1er août 2025).",montant:17173.8,affichage:null,annee:"2025",fiabilite:"texte",payeur:"Consommateurs",precisions:"Recettes tarifaires perçues par Enedis en 2025, inférieures de 231,6 M€ aux prévisions (année chaude). Évolutions de grille : +7,7 % au 1er février 2025, -1,92 % au 1er août 2025 (sortie du FACÉ).\nPayé par les fournisseurs, les gros consommateurs sous contrat CARD et les producteurs.",sources:[S.d105,S.cpt25]},
+ {id:"3",nom:"Contribution au raccordement",source:"demandeurs",target:"enedis",nature:"tarif",cadre:"Code de l'énergie, art. L342-1 à L342-12 ; taux de réfaction fixé par arrêté ; barèmes approuvés par la CRE.",montant:1132.7,affichage:null,annee:"2025",fiabilite:"texte",payeur:"Demandeurs de raccordement",precisions:"Inférieure de 286,8 M€ (-20 %) aux prévisions du TURPE 7 (1 419,4 M€), notamment sur les branchements BT ≤ 36 kVA (-21 %), les IRVE et les producteurs HTA. 2024 : 1 112 M€.",sources:[S.d105,S.cpt25]},
+ {id:"4",nom:"Fonds de péréquation de l'électricité (FPE) : zones non interconnectées",source:"enedis",target:"fpe",nature:"tarif",cadre:"Dotations fixées par la CRE (délibération 2022-205), formule du code de l'énergie.",montant:310.7,affichage:null,annee:"2025",fiabilite:"texte",payeur:"Contributeurs TURPE",precisions:"Versements 2025 : EDF SEI 248,6 M€, Électricité de Mayotte 58,4 M€, EEWF 3,7 M€. Avec Gérédis (flux 4b), le FPE total versé en 2025 est de 337,3 M€, supérieur de 80,9 M€ aux prévisions. Les comptes d'Enedis enregistrent une charge FPE de 367 M€.",sources:[S.d105,S.cpt25]},
+ {id:"4b",nom:"Fonds de péréquation de l'électricité (FPE) : Gérédis",source:"enedis",target:"eld",nature:"tarif",cadre:"Dotation fixée par la CRE (délibération 2022-205).",montant:26.6,affichage:null,annee:"2025",fiabilite:"texte",payeur:"Contributeurs TURPE",precisions:"Gérédis (Deux-Sèvres) est la seule ELD de métropole bénéficiaire du FPE en 2025.",sources:[S.d105]},
+ {id:"5",nom:"Accise sur l'électricité",source:"conso",target:"etat",nature:"fiscal",cadre:"Impôt national (code des impositions sur les biens et services).",montant:8200,affichage:null,annee:"2025",fiabilite:"officiel",payeur:"Consommateurs",precisions:"Inclut depuis 2022-2023 les anciennes taxes communale et départementale, et depuis août 2025 la fraction affectée au FACÉ.",sources:[S.creEco]},
+ {id:"5a",nom:"Accise non affectée versée au budget général",source:"etat",target:"budget",nature:"fiscal",cadre:"Principe d'universalité budgétaire : aucune affectation juridique.",montant:5400,affichage:null,annee:"2025",fiabilite:"officiel",payeur:"Consommateurs",precisions:"Répartition 2025 de l'accise (8,2 Md€) : budget général 5,4 Md€, collectivités 2,4 Md€, péréquation ZNI 0,2 Md€, électrification rurale 0,2 Md€ (Cour des comptes, reprise par la CRE). Les deux tiers de l'accise n'ont donc pas de lien avec le réseau.",sources:[S.creEco,S.cdcBud25]},
+ {id:"5b",nom:"Fraction d'accise affectée à la péréquation des ZNI",source:"etat",target:"zni",nature:"fiscal",cadre:"Loi de finances pour 2025, article 20 : fraction d'accise affectée aux charges de péréquation des ZNI à compter d'août 2025.",montant:200,affichage:null,annee:"2025 (année partielle)",fiabilite:"officiel",payeur:"Consommateurs",precisions:"Montant arrondi (0,2 Md€) ; inférieur à une année pleine car 2025 est une année de transition. Les charges totales de péréquation ZNI s'élèvent à 3,3 Md€ en 2025.",sources:[S.creEco]},
+ {id:"6",nom:"TVA",source:"conso",target:"etat",nature:"fiscal",cadre:"Impôt national.",montant:null,affichage:800,annee:"",fiabilite:"nc",payeur:"Consommateurs",precisions:"Non chiffrée. L'épaisseur du trait est indicative et ne représente pas un montant.",sources:[]},
+ {id:"7",nom:"Contribution tarifaire d'acheminement (CTA), part distribution d'électricité",source:"conso",target:"cnieg",nature:"fiscal",cadre:"Assiette fixée par décret, indexée sur la part fixe du TURPE ; taux fixés par arrêté.",montant:1519.2,affichage:null,annee:"2025",fiabilite:"officiel",payeur:"Consommateurs",precisions:"CTA recouvrée en 2025 sur les prestations de distribution d'électricité (exercice courant). S'y ajoutent 159,2 M€ sur le transport d'électricité. La section CTA de la CNIEG dégage un excédent de 933 M€ en 2025.",sources:[S.cnieg25]},
+ {id:"8",nom:"Part communale et départementale de l'accise",source:"etat",target:"communes",nature:"fiscal",cadre:"Fraction d'impôt national reversée aux collectivités, calculée par la DGFiP et notifiée par arrêté préfectoral.",montant:2400,affichage:null,annee:"2025",fiabilite:"officiel",payeur:"Consommateurs",precisions:"Environ 29 % de l'accise. Pour les communes de moins de 2 000 habitants, elle est perçue par le syndicat ; au-delà, par la commune ou le syndicat selon délibérations. Selon la FNCCR, les syndicats en ont perçu environ 600 M€ pour leur propre compte en 2023. Ventilation nationale non publiée.\nUne partie de ce flux finance donc le réseau via les syndicats. Exemple : en Maine-et-Loire, 95 % des communes reversent leur part au Siéml, en contrepartie d'un allègement de leurs participations aux travaux. L'autre partie alimente le budget général des communes et départements, sans fléchage.\nSelon l'enquête de la FNCCR, les syndicats reversent en moyenne environ un tiers de la part qu'ils perçoivent à leurs communes membres.",sources:[S.creEco,S.fnccr23,S.sieml]},
+ {id:"9a",nom:"Contribution des GRD au FACÉ (janvier-juillet 2025)",source:"enedis",target:"face",nature:"fiscal",cadre:"Contribution due par les gestionnaires de réseaux (CGCT, art. L2224-31), supprimée au 1er août 2025.",montant:203,affichage:null,annee:"2025",fiabilite:"officiel",payeur:"Contributeurs TURPE",precisions:"Part d'Enedis (comptes 2025, note 6). 348 M€ en 2024, sur une année pleine.",sources:[S.cpt25,S.face25]},
+ {id:"9b",nom:"Fraction d'accise affectée au FACÉ (et contributions des autres GRD)",source:"etat",target:"face",nature:"fiscal",cadre:"Loi de finances pour 2025 : fraction du produit de l'accise affectée au CAS FACÉ à compter du 1er août 2025, indexée sur l'inflation.",montant:174,affichage:null,annee:"2025",fiabilite:"estimation",payeur:"Consommateurs",precisions:"Calcul par différence : recettes du CAS en 2025 (377 M€) moins la contribution d'Enedis (203 M€). Inclut aussi les contributions des ELD et d'EDF SEI jusqu'en juillet. Cohérent avec la répartition de l'accise publiée par la Cour des comptes (0,2 Md€ pour l'électrification rurale en 2025).",sources:[S.face25,S.creEco]},
+ {id:"9",nom:"Aides FACÉ aux AODE (programme 793)",source:"face",target:"aode",nature:"aide",cadre:"Arrêtés annuels de répartition, après avis du Conseil à l'électrification rurale ; prise en charge jusqu'à 80 % HT des travaux.",montant:366.3,affichage:null,annee:"2025",fiabilite:"texte",payeur:"Consommateurs",precisions:"Crédits de paiement consommés en 2025 sur le programme 793 « Électrification rurale ». S'y ajoutent 8,2 M€ sur le programme 794 (maîtrise de la demande, ZNI).",sources:[S.face25]},
+ {id:"10",nom:"Redevances de concession (R1 et R2)",source:"enedis",target:"aode",nature:"contrat",cadre:"Contrat de concession (annexe 1 du modèle national).",montant:349,affichage:null,annee:"2025",fiabilite:"officiel",payeur:"Contributeurs TURPE",precisions:"R1 : fonctionnement. R2 : investissement, hors travaux financés par le FACÉ. 341 M€ en 2024. Incluses dans les charges d'exploitation couvertes par le tarif.",sources:[S.cpt25]},
+ {id:"11",nom:"Participation à l'intégration des ouvrages dans l'environnement",source:"enedis",target:"aode",nature:"contrat",cadre:"Contrat de concession, article 8.",montant:null,affichage:30,annee:"",fiabilite:"nc",payeur:"Contributeurs TURPE ?",precisions:"Cofinancement des travaux par Enedis à hauteur de 40 % HT. Pas de données agrégées disponibles.",sources:[S.cahier]},
+ {id:"12",nom:"Fiscalité locale d'Enedis (CET et IFER)",source:"enedis",target:"communes",nature:"fiscal",cadre:"Contribution économique territoriale ; imposition forfaitaire sur les transformateurs (fixée nationalement).",montant:182,affichage:null,annee:"2025",fiabilite:"officiel",payeur:"Contributeurs TURPE",precisions:"CET 75 M€ et IFER 107 M€ en 2025 (comptes 2025, note 6). Taxe foncière non isolée.",sources:[S.cpt25]},
+ {id:"13",nom:"Redevance d'occupation du domaine public (RODP), plafond réglementaire",source:"enedis",target:"communes",nature:"redevance",cadre:"CGCT, art. R2333-105 (communes) et R3333-4 (départements) : plafonds fonction de la population totale, revalorisés chaque année (coefficient 1,5983 en 2026). Montant fixé par délibération dans la limite du plafond.",montant:42.1,affichage:null,annee:"2026 (plafond calculé)",fiabilite:"estimation",payeur:"Contributeurs TURPE",precisions:"Plafond calculé sur l'Hexagone avec les populations totales INSEE en vigueur au 1er janvier 2026 : communes 34,96 M€ (34 426 communes, arrondi à l'euro par commune), départements 7,18 M€ ; total 42,1 M€. Corse et outre-mer exclus.\nC'est un maximum, pas le montant versé : la RODP n'est due que si la collectivité l'a instituée par délibération, elle peut être fixée sous le plafond, et elle couvre aussi les ouvrages de transport (RTE) et ceux des ELD.\nL'estimation initiale du groupe (environ 40 M€) est donc proche du plafond. Le montant réellement versé par Enedis, et son inclusion éventuelle dans les redevances de concession (flux 10), restent à demander en entretien.",sources:[S.rodpCom,S.rodpDep,S.rodp26,S.inseePop]},
+ {id:"14",nom:"Dividendes versés à EDF",source:"u_rem",target:"edf",nature:"dividende",cadre:"Distribution décidée par l'assemblée générale de l'actionnaire unique.",montant:448,affichage:null,annee:"2025 (versés, au titre de 2024)",fiabilite:"texte",payeur:"",precisions:"Versés en 2025 au titre de l'exercice 2024 : 0,83 € par action. Au titre de 2025, l'assemblée a décidé 1 139,6 M€ (2,11 € par action), versés en 2026. Aucun dividende au titre de 2023 (perte).",sources:[S.cpt25]},
+ {id:"15",nom:"Contribution au renouvellement accéléré des ouvrages BT",source:"enedis",target:"aode",nature:"contrat",cadre:"Contrat de concession, article 10.",montant:null,affichage:15,annee:"",fiabilite:"nc",payeur:"Contributeurs TURPE ?",precisions:"Enedis cofinance 20 % du coût HT sous conditions. Pas de donnée agrégée.",sources:[S.cahier]},
+ {id:"16",nom:"Part couverte par le tarif (PCT) des raccordements sous MOA de l'AODE",source:"enedis",target:"aode",nature:"contrat",cadre:"Contrat de concession, article 4 C et annexe 2 bis.",montant:null,affichage:15,annee:"",fiabilite:"nc",payeur:"Contributeurs TURPE",precisions:"Pas de donnée agrégée.",sources:[S.cahier]},
+ {id:"17",nom:"Contribution au raccordement sous MOA de l'AODE",source:"demandeurs",target:"aode",nature:"contrat",cadre:"Contrat de concession, article 6.",montant:null,affichage:20,annee:"",fiabilite:"nc",payeur:"Demandeurs de raccordement",precisions:"Pas de donnée agrégée.",sources:[S.cahier]},
+ {id:"2.a1",nom:"TURPE HTB et raccordement des postes sources",source:"enedis",target:"rte",nature:"tarif",cadre:"Charges couvertes par le revenu autorisé (délib. 2026-105, postes i.d et i.e).",montant:4072.5,affichage:null,annee:"2025",fiabilite:"texte",payeur:"Contributeurs TURPE",precisions:"TURPE HTB 4 053,7 M€ (-71,1 M€ par rapport aux prévisions) et raccordement des postes sources 18,8 M€.",sources:[S.d105]},
+ {id:"2.a2",nom:"Achat des pertes",source:"enedis",target:"pertes",nature:"marche",cadre:"Charges couvertes par le revenu autorisé (poste i.f), avec régulation incitative.",montant:1961.8,affichage:null,annee:"2025",fiabilite:"texte",payeur:"Contributeurs TURPE",precisions:"Supérieur de 67,8 M€ aux prévisions (prix de référence plus élevé). Malus de 33,1 M€ sur la régulation incitative des pertes.",sources:[S.d105]},
+ {id:"2.b1",nom:"Charges d'exploitation (hors flux déjà représentés)",source:"enedis",target:"u_exp",nature:"emploi",cadre:"Charges nettes d'exploitation incitées (poste i.a).",montant:4533.7,affichage:null,annee:"2025",fiabilite:"estimation",payeur:"Contributeurs TURPE",precisions:"Calcul : charges nettes d'exploitation incitées 5 267,7 M€ moins les flux déjà représentés séparément qui y sont inclus (redevances de concession 349 M€, CET et IFER 182 M€, contribution FACÉ 203 M€). Approximation à confirmer.",sources:[S.d105,S.cpt25]},
+ {id:"2.b2",nom:"Autres charges couvertes par le tarif",source:"enedis",target:"u_exp",nature:"emploi",cadre:"Postes couverts au CRCP (i.g, i.k, i.n, i.o, i.l, i.j, i.q).",montant:490.6,affichage:null,annee:"2025",fiabilite:"texte",payeur:"Contributeurs TURPE",precisions:"Tarif agent 246,3 M€ ; impayés 135,4 M€ ; indemnités coupures longues 75 M€ (94,7 M€ versés) ; flexibilités 14,6 M€ ; études IRVE 8,2 M€ ; coûts échoués 2 M€ ; fiscalité LF 2025 9,1 M€.",sources:[S.d105]},
+ {id:"2.c1",nom:"Amortissements couverts par le TURPE",source:"enedis",target:"inv",nature:"investissement",cadre:"Charges de capital normatives : dotations nettes aux amortissements et aux provisions pour renouvellement (délib. 2025-78, §2.1.1.2).",montant:3100.7,affichage:null,annee:"2025 (trajectoire CRE ; total ex post 5 471,7 M€)",fiabilite:"texte",payeur:"Contributeurs TURPE",precisions:"Colonne 2025 du tableau 33 : amortissements hors Linky 3 128,2 M€, provisions -27,5 M€. Le total des charges de capital retenu ex post pour 2025 est 5 471,7 M€ (délib. 2026-105), contre 5 466,2 M€ prévus.",sources:[S.t33,S.d105]},
+ {id:"2.c2",nom:"Marge sur actif",source:"enedis",target:"u_rem",nature:"emploi",cadre:"Marge sur actif de 2,5 % de la BAR hors Linky.",montant:1535.2,affichage:null,annee:"2025 (trajectoire CRE ; total ex post 5 471,7 M€)",fiabilite:"texte",payeur:"Contributeurs TURPE",precisions:"BAR hors Linky au 1er janvier 2025 : 61 406 M€.",sources:[S.t33]},
+ {id:"2.c3",nom:"Rémunération des capitaux propres régulés",source:"enedis",target:"u_rem",nature:"emploi",cadre:"Rémunération additionnelle de 2,9 % des CPR.",montant:309.9,affichage:null,annee:"2025 (trajectoire CRE ; total ex post 5 471,7 M€)",fiabilite:"texte",payeur:"Contributeurs TURPE",precisions:"CPR au 1er janvier 2025 : 10 687 M€.",sources:[S.t33]},
+ {id:"2.c4",nom:"Rémunération des emprunts financiers",source:"enedis",target:"u_rem",nature:"emploi",cadre:"Rémunération additionnelle de 2,1 % des emprunts.",montant:74.8,affichage:null,annee:"2025 (trajectoire CRE ; total ex post 5 471,7 M€)",fiabilite:"texte",payeur:"Contributeurs TURPE",precisions:"Charges financières versées en 2025 : 141 M€ (tableau de flux).",sources:[S.t33,S.cpt25]},
+ {id:"2.c6",nom:"Rémunération des immobilisations en cours",source:"enedis",target:"u_rem",nature:"emploi",cadre:"Postes sources en construction, rémunérés au coût de la dette.",montant:7.8,affichage:null,annee:"2025 (trajectoire CRE ; total ex post 5 471,7 M€)",fiabilite:"texte",payeur:"Contributeurs TURPE",precisions:"Encours 2025 : 370 M€ (tableau 31).",sources:[S.t33]},
+ {id:"2.c5",nom:"Charges de capital Linky",source:"enedis",target:"u_linky",nature:"emploi",cadre:"Cadre Linky (délibération CRE du 17 juillet 2014).",montant:438,affichage:null,annee:"2025 (trajectoire CRE ; total ex post 5 471,7 M€)",fiabilite:"texte",payeur:"Contributeurs TURPE",precisions:"Rémunération 236,0 M€ et amortissement 201,7 M€. Bonus de 12,4 M€ en 2025 au titre de la régulation incitative Linky.",sources:[S.t33,S.d105]},
+ {id:"2.d",nom:"Apurement du CRCP du TURPE 6",source:"enedis",target:"u_crcp",nature:"emploi",cadre:"Fixé par la délibération tarifaire TURPE 7.",montant:1436.4,affichage:null,annee:"2025",fiabilite:"texte",payeur:"Contributeurs TURPE",precisions:"Montant définitif pour 2025.",sources:[S.d105]},
+ {id:"2.e",nom:"Compte régulé de lissage (Linky)",source:"enedis",target:"u_crl",nature:"emploi",cadre:"Fixé par la délibération tarifaire TURPE 7 (tableau 2).",montant:375,affichage:null,annee:"2025",fiabilite:"texte",payeur:"Contributeurs TURPE",precisions:"Apurement complet fin 2030.",sources:[S.d105,S.cre7]},
+ {id:"2.f",nom:"Financement complémentaire des investissements",source:"enedis",target:"inv",nature:"investissement",cadre:"Calcul par différence : investissements prévus pour 2025 (5 827,5 M€) moins amortissements couverts par le TURPE (3 100,7 M€).",montant:2726.8,affichage:null,annee:"2025",fiabilite:"estimation",payeur:"Mixte",precisions:"Part avancée par Enedis, qui entre dans la base d'actifs et sera remboursée par les futures charges de capital.\nTableau de flux 2025 : flux net généré par l'activité 5 726 M€ (après 834 M€ d'impôt sur les sociétés), acquisitions d'immobilisations 5 566 M€, dividendes 448 M€, emprunts nouveaux 757 M€, remboursements 167 M€, trésorerie +241 M€.",sources:[S.t30,S.cpt25]},
+ {id:"P1",nom:"Participations reçues sur les ouvrages en concession",source:"tiers",target:"enedis",nature:"contrat",cadre:"Participations de tiers au financement d'ouvrages concédés en cours (droits du concédant).",montant:162,affichage:null,annee:"2025",fiabilite:"officiel",payeur:"Collectivités, concédants ou autres tiers",precisions:"Augmentation 2025 du poste « participations reçues sur immobilisations en cours du domaine concédé » (note 19) ; 134 M€ en 2024. Répartition entre contributeurs à demander en entretien.",sources:[S.cpt25]},
+ {id:"B1",nom:"Financement levé par EDF pour Enedis",source:"bei",target:"edf_pret",nature:"dette",cadre:"Émission d'obligations vertes par EDF, adossée au prêt à Enedis.",montant:750,affichage:null,annee:"2025",fiabilite:"officiel",payeur:"Remboursé par Enedis (in fine contributeurs TURPE)",precisions:"En 2025, le nouvel emprunt d'Enedis est adossé à une obligation verte d'EDF. Le contrat BEI-EDF de 500 M€ signé en 2025 (phase 2) n'apparaît pas encore dans la dette d'Enedis fin 2025.",sources:[S.cpt25,S.bei25,S.edf25]},
+ {id:"B2",nom:"Prêt d'EDF à Enedis (obligation verte)",source:"edf_pret",target:"enedis",nature:"dette",cadre:"Convention de prêt signée en décembre 2025 : 3,77 % à taux fixe, remboursable in fine en 2034.",montant:750,affichage:null,annee:"2025",fiabilite:"officiel",payeur:"Remboursé par Enedis",precisions:"Dette d'Enedis fin 2025 : 5 594 M€ d'emprunts (BEI 1 857 M€, obligations vertes et sociales 3 737 M€), tous émis via EDF à taux fixe. Remboursements 2025 : 164 M€.",sources:[S.cpt25]},
+ {id:"C1",nom:"Participations des communes aux travaux des syndicats",source:"communes",target:"aode",nature:"contrat",cadre:"Statuts des syndicats et délibérations : participations des communes membres aux travaux qu'elles demandent (extensions, enfouissement).",montant:null,affichage:20,annee:"",fiabilite:"nc",payeur:"Communes (budget général)",precisions:"Non chiffré : aucune donnée agrégée disponible. L'épaisseur du trait est indicative et ne représente pas un montant. Montants variables selon les syndicats, souvent modulés selon que la commune reverse ou non sa part d'accise.",sources:[S.sieml]},
+ {id:"C2",nom:"Contributions des collectivités aux extensions de réseau",source:"communes",target:"inv",nature:"contrat",cadre:"Code de l'énergie, art. L342-11 : contribution de la collectivité compétente en urbanisme aux extensions nécessaires à un raccordement, versée au maître d'ouvrage (Enedis ou AODE).",montant:null,affichage:20,annee:"",fiabilite:"nc",payeur:"Communes et EPCI (budget général)",precisions:"Non chiffré : aucune donnée agrégée disponible. L'épaisseur du trait est indicative et ne représente pas un montant. Hespul indique qu'en 2018 les demandeurs de raccordement et les collectivités ont contribué ensemble à hauteur de 700 M€, sans isoler la part des collectivités.",sources:[S.hespul]},
+ {id:"E1",nom:"TURPE perçu par les ELD",source:"fournisseurs",target:"eld",nature:"tarif",cadre:"Même TURPE péréqué que sur la zone Enedis (code de l'énergie, art. L121-29 et délibérations CRE).",montant:null,affichage:20,annee:"",fiabilite:"nc",payeur:"Consommateurs des zones ELD",precisions:"Non chiffré : aucune donnée agrégée disponible. L'épaisseur du trait est indicative et ne représente pas un montant.",sources:[S.eldwiki]},
+ {id:"E2",nom:"Redevances des ELD à leurs autorités concédantes",source:"eld",target:"aode",nature:"contrat",cadre:"Contrats de concession des ELD, lorsqu'elles sont concessionnaires ; les régies sont gérées directement par la collectivité.",montant:null,affichage:10,annee:"",fiabilite:"nc",payeur:"Contributeurs TURPE",precisions:"Non chiffré : aucune donnée agrégée disponible. L'épaisseur du trait est indicative et ne représente pas un montant.",sources:[]},
+ {id:"E3",nom:"Investissements des ELD dans leurs réseaux",source:"eld",target:"inv",nature:"investissement",cadre:"Couverts par le TURPE péréqué et, pour certaines, par le FPE.",montant:null,affichage:20,annee:"",fiabilite:"nc",payeur:"Contributeurs TURPE",precisions:"Non chiffré : aucune donnée agrégée disponible. L'épaisseur du trait est indicative et ne représente pas un montant. Sources possibles : comptes des principales ELD, fédérations (ELE, UNELEG, FNSICAE), CRE.",sources:[S.eldwiki]},
+ {id:"I6",nom:"Investissements des ELD",source:"inv",target:"i_eld",nature:"investissement",cadre:"Voir flux E3.",montant:null,affichage:20,annee:"",fiabilite:"nc",payeur:"",precisions:"Non chiffré : aucune donnée agrégée disponible. L'épaisseur du trait est indicative et ne représente pas un montant.",sources:[]},
+ {id:"A1",nom:"Investissements des AODE",source:"aode",target:"inv",nature:"investissement",cadre:"Travaux sous maîtrise d'ouvrage des autorités concédantes (cahier des charges de concession, annexe 1).",montant:800,affichage:null,annee:"2025-2026 (estimation)",fiabilite:"estimation",payeur:"Mixte (FACÉ, R2, accise, communes)",precisions:"Estimations : environ 1 Md€/an fin des années 2000 (Cour des comptes 2013) ; 700 à 800 M€/an sur 2013-2019 (Hespul, d'après EDF) ; 950 M€ pour 2022 (FNCCR) ; environ 800 M€/an (FNCCR, 2026). Pas de chiffre 2025 publié.",sources:[S.fnccr26,S.fnccr23,S.hespul,S.cdc13]},
+ {id:"I1",nom:"Investissements Enedis : raccordement et renforcement",source:"inv",target:"i_racc",nature:"investissement",cadre:"Trajectoire retenue par la CRE (délib. 2025-78, tableau 30).",montant:3041.7,affichage:null,annee:"2025 (prévision CRE)",fiabilite:"texte",payeur:"",precisions:"Moyenne TURPE 7 : 3 527,7 M€. La ventilation réalisée 2025 par catégorie n'est pas publiée dans les documents disponibles.",sources:[S.t30]},
+ {id:"I2",nom:"Investissements Enedis : renouvellement, qualité et modernisation",source:"inv",target:"i_renouv",nature:"investissement",cadre:"Trajectoire retenue par la CRE (délib. 2025-78, tableau 30).",montant:1546.4,affichage:null,annee:"2025 (prévision CRE)",fiabilite:"texte",payeur:"",precisions:"Moyenne TURPE 7 : 1 576,1 M€. La ventilation réalisée 2025 par catégorie n'est pas publiée dans les documents disponibles.",sources:[S.t30]},
+ {id:"I3",nom:"Investissements Enedis : outils de travail et moyens d'exploitation",source:"inv",target:"i_outils",nature:"investissement",cadre:"Trajectoire retenue par la CRE (délib. 2025-78, tableau 30).",montant:620.6,affichage:null,annee:"2025 (prévision CRE)",fiabilite:"texte",payeur:"",precisions:"Moyenne TURPE 7 : 664,4 M€. La ventilation réalisée 2025 par catégorie n'est pas publiée dans les documents disponibles.",sources:[S.t30]},
+ {id:"I4",nom:"Investissements Enedis : contraintes réglementaires",source:"inv",target:"i_regl",nature:"investissement",cadre:"Trajectoire retenue par la CRE (délib. 2025-78, tableau 30).",montant:618.8,affichage:null,annee:"2025 (prévision CRE)",fiabilite:"texte",payeur:"",precisions:"Moyenne TURPE 7 : 624,9 M€. La ventilation réalisée 2025 par catégorie n'est pas publiée dans les documents disponibles.",sources:[S.t30]},
+ {id:"I5",nom:"Travaux sous maîtrise d'ouvrage des AODE",source:"inv",target:"i_aode",nature:"investissement",cadre:"Cahier des charges de concession.",montant:800,affichage:null,annee:"2025-2026 (estimation)",fiabilite:"estimation",payeur:"",precisions:"Voir flux A1.",sources:[S.fnccr26]}
+]};
+
+const KEY="distribelec-flux-v8";
+const clone=o=>JSON.parse(JSON.stringify(o));
+function load(){try{const s=localStorage.getItem(KEY);return s?JSON.parse(s):null}catch(e){return null}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){}}
+let data=load()||clone(DEFAULT);
+const ui={color:"nature",scale:"sqrt",view:"detail",edit:false,hidden:new Set(),pins:[],pinPos:{},sel:null,offsets:{},sort:{k:"id",dir:1}};
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const nf=new Intl.NumberFormat("fr-FR");
+const fmt=v=>v==null||v===""||isNaN(v)?"n.c.":nf.format(v)+" M€";
+const nodeById=id=>data.nodes.find(n=>n.id===id);
+const flowById=id=>data.flows.find(f=>f.id===id);
+const hasAmt=f=>f.montant!=null&&f.montant!==""&&!isNaN(f.montant);
+const approx=f=>hasAmt(f)&&(f.fiabilite==="faible"||f.fiabilite==="estimation")?"≈ ":"";
+const short=k=>(FIAB[k]||k).split(" :")[0];
+const payerList=()=>[...new Set(data.flows.map(f=>(f.payeur||"Non renseigné").replace(/\s*\?$/,"")))];
+function colorOf(f){
+  if(ui.color==="nature")return `var(--n-${f.nature in NATURES?f.nature:"marche"})`;
+  const i=payerList().indexOf((f.payeur||"Non renseigné").replace(/\s*\?$/,""));return `var(--p${(i%6)+1})`;
+}
+const idCmp=(a,b)=>String(a).localeCompare(String(b),"fr",{numeric:true});
+const showUses=()=>ui.view==="detail";
+const DETAIL=new Set(["emploi","investissement"]);
+const inView=f=>showUses()||!DETAIL.has(f.nature);
+
+/* ---------- Sankey ---------- */
+const svg=d3.select("#viz"),tip=document.getElementById("tip"),stage=document.getElementById("stage");
+const W=1750;let H=720,root,zoom,graph,sk,linkSel,nodeSel,labelSel;
+function visibleFlows(){return data.flows.filter(f=>!ui.hidden.has(f.nature)&&inView(f)&&nodeById(f.source)&&nodeById(f.target)&&f.source!==f.target)}
+const baseVal=f=>hasAmt(f)?+f.montant:(+f.affichage||10);
+function render(){
+  svg.selectAll("*").remove();
+  const flows=visibleFlows();
+  const used=new Set(flows.flatMap(f=>[f.source,f.target]));
+  const nodes=data.nodes.filter(n=>used.has(n.id)).map(n=>({...n}));
+  const perCol=d3.rollup(nodes,v=>v.length,n=>+n.col||0);
+  H=Math.max(600,(d3.max([...perCol.values()])||4)*66);
+  svg.attr("viewBox",`0 0 ${W} ${H}`).attr("preserveAspectRatio","xMidYMid meet");
+  if(!flows.length){svg.append("text").attr("x",W/2).attr("y",H/2).attr("text-anchor","middle").attr("fill","var(--muted)").text("Aucun flux visible : réactivez une nature dans la légende.");return}
+  const maxV=d3.max(flows,baseVal);
+  const tv=v=>ui.scale==="sqrt"?Math.sqrt(Math.max(v,0.5)):Math.max(v,maxV*0.003);
+  sk=d3.sankey().nodeId(d=>d.id).nodeAlign(d=>Math.max(0,+d.col||0)).nodeWidth(12).nodePadding(24)
+    .nodeSort(null).linkSort(null).extent([[190,40],[W-240,H-50]]);
+  try{graph=sk({nodes,links:flows.map(f=>({...f,value:tv(baseVal(f))}))})}
+  catch(e){svg.append("text").attr("x",20).attr("y",60).attr("fill","var(--n-dividende)").text("Impossible de dessiner : vérifiez qu'aucun flux ne forme une boucle.");return}
+  graph.nodes.forEach(n=>{const o=ui.offsets[n.id]||0;n.y0+=o;n.y1+=o});sk.update(graph);
+  const known=(n,dir)=>d3.sum(data.flows.filter(f=>f[dir]===n.id&&hasAmt(f)&&inView(f)),f=>+f.montant);
+  graph.nodes.forEach(n=>{n.tin=known(n,"target");n.tout=known(n,"source")});
+
+  root=svg.append("g");
+  zoom=d3.zoom().scaleExtent([.5,5]).on("zoom",e=>root.attr("transform",e.transform));
+  svg.call(zoom).on("dblclick.zoom",null);
+
+  linkSel=root.append("g").selectAll("path").data(graph.links).join("path")
+    .attr("class",d=>`lk ${d.fiabilite||"officiel"}`+(ui.pins.includes("f:"+d.id)||(ui.sel&&ui.sel.kind==="flow"&&ui.sel.id===d.id)?" pinned":""))
+    .style("stroke",d=>colorOf(d)).attr("stroke-width",d=>Math.max(1.5,d.width))
+    .on("mouseenter",(e,d)=>hover(e,d,"link")).on("mousemove",moveTip).on("mouseleave",unhover)
+    .on("click",(e,d)=>{e.stopPropagation();clickFlow(d.id)});
+  labelSel=root.append("g").selectAll("text").data(graph.links.filter(l=>l.width>15)).join("text").attr("class","ll").attr("text-anchor","middle").attr("dy","0.35em")
+    .text(d=>approx(d)+fmt(d.montant));
+  nodeSel=root.append("g").selectAll("g").data(graph.nodes).join("g").attr("class","nd")
+    .on("mouseenter",(e,d)=>hover(e,d,"node")).on("mousemove",moveTip).on("mouseleave",unhover)
+    .on("click",(e,d)=>{e.stopPropagation();clickNode(d.id)})
+    .call(d3.drag().on("start",e=>e.sourceEvent.stopPropagation()).on("drag",(e,d)=>{
+      d.y0+=e.dy;d.y1+=e.dy;ui.offsets[d.id]=(ui.offsets[d.id]||0)+e.dy;sk.update(graph);place();}));
+  nodeSel.append("rect").attr("width",d=>d.x1-d.x0).style("fill",d=>`var(--t-${d.type in TYPES?d.type:"autre"})`);
+  const t=nodeSel.append("text");
+  t.append("tspan").attr("class","nl").text(d=>d.label);
+  t.append("tspan").attr("class","nv").text(d=>{const v=Math.max(d.tin,d.tout);return v?fmt(v):"montant n.c."});
+  place();
+}
+function place(){
+  linkSel.attr("d",d3.sankeyLinkHorizontal());
+  labelSel.attr("x",d=>(d.source.x1+d.target.x0)/2).attr("y",d=>(d.y0+d.y1)/2);
+  nodeSel.select("rect").attr("x",d=>d.x0).attr("y",d=>d.y0).attr("height",d=>Math.max(2,d.y1-d.y0));
+  nodeSel.select("text").each(function(d){
+    const left=(+d.col||0)===0,x=left?d.x0-8:d.x1+8,ym=(d.y0+d.y1)/2;
+    const s=d3.select(this).attr("text-anchor",left?"end":"start");
+    s.select(".nl").attr("x",x).attr("y",ym-2);s.select(".nv").attr("x",x).attr("y",ym+14);
+  });
+}
+function hover(e,d,kind){
+  svg.classed("hl",true);
+  if(kind==="link"){
+    linkSel.classed("on",l=>l===d);nodeSel.classed("on",n=>n===d.source||n===d.target);
+    tip.innerHTML=`<b>${esc(d.id)}. ${esc(d.nom)}</b>${esc(d.source.label)} → ${esc(d.target.label)}<br>${approx(d)}${fmt(d.montant)}${d.annee?" ("+esc(d.annee)+")":""}<br>${esc(NATURES[d.nature]||d.nature)}, fiabilité ${esc(short(d.fiabilite).toLowerCase())}`;
+  }else{
+    linkSel.classed("on",l=>l.source===d||l.target===d);
+    nodeSel.classed("on",n=>n===d||graph.links.some(l=>(l.source===d&&l.target===n)||(l.target===d&&l.source===n)));
+    tip.innerHTML=`<b>${esc(d.label)}</b>Reçoit ${fmt(d.tin)} chiffrés<br>Verse ${fmt(d.tout)} chiffrés`;
+  }
+  tip.style.opacity=1;moveTip(e);
+}
+function moveTip(e){const r=stage.getBoundingClientRect();let x=e.clientX-r.left+14,y=e.clientY-r.top+14;if(x>r.width-310)x=e.clientX-r.left-310;if(y>r.height-120)y=e.clientY-r.top-110;tip.style.left=x+"px";tip.style.top=y+"px"}
+function unhover(){svg.classed("hl",false);linkSel&&linkSel.classed("on",false);nodeSel&&nodeSel.classed("on",false);tip.style.opacity=0}
+svg.on("click",()=>{if(ui.edit&&ui.sel){ui.sel=null;refresh()}});
+
+function togglePin(k){
+  if(ui.pins.includes(k)){ui.pins=ui.pins.filter(p=>p!==k);return}
+  ui.pins.push(k);
+  if(!ui.pinPos[k]){const r=stage.getBoundingClientRect();const n=ui.pins.length-1;ui.pinPos[k]={x:Math.max(10,r.width-330-(n%5)*26),y:44+(n%5)*30}}
+}
+function clickFlow(id){if(ui.edit)ui.sel={kind:"flow",id};else togglePin("f:"+id);refresh()}
+function clickNode(id){if(ui.edit)ui.sel={kind:"node",id};else togglePin("n:"+id);refresh()}
+
+/* ---------- Légende et synthèse ---------- */
+function renderSide(){
+  const sumIn=id=>{const fl=data.flows.filter(f=>f.target===id&&!DETAIL.has(f.nature)||f.target===id&&id==="inv");return[d3.sum(fl.filter(hasAmt),f=>+f.montant),fl.filter(f=>!hasAmt(f)).length]};
+  const sumOut=id=>{const fl=data.flows.filter(f=>f.source===id);return[d3.sum(fl.filter(hasAmt),f=>+f.montant),fl.filter(f=>!hasAmt(f)).length]};
+  const rows=data.nodes.filter(n=>n.type!=="emploi"&&n.type!=="poste").map(n=>{
+    const out=n.type==="payeur"||n.type==="financeur";const [v,k]=out?sumOut(n.id):sumIn(n.id);
+    return `<dt>${esc(n.label)} <small>${out?"verse":"reçoit"}</small></dt><dd>${v?nf.format(v):"—"}${k?` <small>+${k} n.c.</small>`:""}</dd>`}).join("");
+  const nats=Object.entries(NATURES).filter(([k])=>data.flows.some(f=>f.nature===k));
+  const colorLeg=ui.color==="nature"
+    ?nats.map(([k,v])=>`<button data-nat="${k}" aria-pressed="${!ui.hidden.has(k)}"><i style="background:var(--n-${k})"></i>${esc(v)}</button>`).join("")
+    :payerList().map((p,i)=>`<div><i style="background:var(--p${i%6+1})"></i>${esc(p)}</div>`).join("");
+  document.getElementById("side").innerHTML=`
+  <section><h2>Synthèse budgétaire</h2><p class="scope">Montants annuels chiffrés en M€ ; n.c. = flux non chiffrés</p><dl class="sum">${rows}</dl></section>
+  <section><h2>${ui.color==="nature"?"Nature juridique":"Payeur final"}</h2>${ui.color==="nature"?`<p class="scope">Cliquez pour masquer ou afficher</p>`:""}<div class="leg">${colorLeg}</div></section>
+  <section><h2>Types d'acteurs</h2><div class="leg">${Object.entries(TYPES).map(([k,v])=>`<div><i class="bar" style="background:var(--t-${k})"></i>${v}</div>`).join("")}</div></section>
+  <section><h2>Fiabilité des montants</h2><div class="rel">${Object.entries(FIAB).map(([k,v])=>{const[a,b]=v.split(" : ");return `<i class="sw ${k}"></i><div><b>${esc(a)}</b>${b?`<span>${esc(b)}</span>`:`<span>épaisseur indicative</span>`}</div>`}).join("")}</div></section>`;
+  document.querySelectorAll("#side [data-nat]").forEach(b=>b.onclick=()=>{const k=b.dataset.nat;ui.hidden.has(k)?ui.hidden.delete(k):ui.hidden.add(k);refresh()});
+}
+
+/* ---------- Fiches flottantes ---------- */
+function flowCard(f){
+  const s=nodeById(f.source),t=nodeById(f.target);
+  const src=(f.sources||[]).map(x=>x.url?`<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.label||x.url)}</a>`:esc(x.label)).join("<br>");
+  return `<div class="grip"><h4>${esc(f.id)}. ${esc(f.nom)}</h4><div class="route">${esc(s?.label||f.source)} → ${esc(t?.label||f.target)}</div></div>
+  <div class="amt">${approx(f)}${fmt(hasAmt(f)?+f.montant:null)}<small>${esc(f.annee||"")}</small></div>
+  <dl><dt>Nature</dt><dd>${esc(NATURES[f.nature]||f.nature)}</dd>
+  <dt>Cadre juridique</dt><dd>${esc(f.cadre||"—")}</dd>
+  <dt>Fiabilité</dt><dd>${esc(FIAB[f.fiabilite]||f.fiabilite)}</dd>
+  <dt>Payeur final</dt><dd>${esc(f.payeur||"—")}</dd>
+  ${f.precisions?`<dt>Précisions</dt><dd>${esc(f.precisions)}</dd>`:""}
+  ${src?`<dt>Sources</dt><dd>${src}</dd>`:""}</dl>`;
+}
+function nodeCard(n){
+  const li=a=>a.map(f=>`<a href="#" data-pin="${esc(f.id)}">${esc(f.id)}. ${esc(f.nom)}</a> (${approx(f)}${fmt(hasAmt(f)?+f.montant:null)})`).join("<br>")||"—";
+  return `<div class="grip"><h4>${esc(n.label)}</h4><div class="route">${esc(TYPES[n.type]||n.type)}</div></div>
+  <dl><dt>Description</dt><dd>${esc(n.desc||"—")}</dd><dt>Reçoit</dt><dd>${li(data.flows.filter(f=>f.target===n.id))}</dd><dt>Verse</dt><dd>${li(data.flows.filter(f=>f.source===n.id))}</dd></dl>`;
+}
+function renderPins(){
+  const layer=document.getElementById("pins");layer.innerHTML="";
+  ui.pins=ui.pins.filter(p=>p[0]==="f"?flowById(p.slice(2)):nodeById(p.slice(2)));
+  ui.pins.forEach((k,i)=>{
+    const isF=k[0]==="f",o=isF?flowById(k.slice(2)):nodeById(k.slice(2));
+    const el=document.createElement("div");el.className="card";
+    el.style.borderTopColor=isF?colorOf(o):`var(--t-${o.type})`;
+    const p=ui.pinPos[k]||{x:20,y:44};el.style.left=p.x+"px";el.style.top=p.y+"px";el.style.zIndex=10+i;
+    el.innerHTML=`<button class="x" aria-label="Retirer la fiche">×</button>`+(isF?flowCard(o):nodeCard(o));
+    el.querySelector(".x").onclick=()=>{ui.pins=ui.pins.filter(x=>x!==k);refresh()};
+    el.querySelectorAll("[data-pin]").forEach(a=>a.onclick=e=>{e.preventDefault();const kk="f:"+a.dataset.pin;if(!ui.pins.includes(kk))togglePin(kk);refresh()});
+    const grip=el.querySelector(".grip");
+    grip.addEventListener("pointerdown",e=>{
+      if(matchMedia("(max-width:900px)").matches)return;
+      e.preventDefault();grip.setPointerCapture(e.pointerId);
+      ui.pins=[...ui.pins.filter(x=>x!==k),k];el.style.zIndex=99;
+      const sx=e.clientX,sy=e.clientY,ox=parseFloat(el.style.left),oy=parseFloat(el.style.top);
+      const mv=ev=>{const r=stage.getBoundingClientRect();const x=Math.min(Math.max(0,ox+ev.clientX-sx),r.width-60),y=Math.min(Math.max(0,oy+ev.clientY-sy),r.height-40);el.style.left=x+"px";el.style.top=y+"px";ui.pinPos[k]={x,y}};
+      const up=()=>{grip.removeEventListener("pointermove",mv);grip.removeEventListener("pointerup",up)};
+      grip.addEventListener("pointermove",mv);grip.addEventListener("pointerup",up);
+    });
+    layer.appendChild(el);
+  });
+  document.getElementById("pinCount").textContent=ui.pins.length;
+}
+
+/* ---------- Éditeur ---------- */
+const opt=(obj,val)=>Object.entries(obj).map(([k,v])=>`<option value="${esc(k)}"${k===val?" selected":""}>${esc(v)}</option>`).join("");
+function flowForm(f){
+  const nodesOpt=v=>data.nodes.map(n=>`<option value="${esc(n.id)}"${n.id===v?" selected":""}>${esc(n.label)}</option>`).join("");
+  return `<h2>Modifier le flux</h2><form class="ed" id="fForm">
+  <div class="row2"><label>N°<input name="id" value="${esc(f.id)}" required></label><label>Nature juridique<select name="nature">${opt(NATURES,f.nature)}</select></label></div>
+  <label>Intitulé du flux<input name="nom" value="${esc(f.nom)}" required></label>
+  <div class="row2"><label>De<select name="source">${nodesOpt(f.source)}</select></label><label>Vers<select name="target">${nodesOpt(f.target)}</select></label></div>
+  <div class="row2"><label>Montant annuel (M€, vide si n.c.)<input name="montant" type="number" step="any" value="${hasAmt(f)?f.montant:""}"></label><label>Épaisseur si n.c. (M€)<input name="affichage" type="number" step="any" value="${f.affichage??""}"></label></div>
+  <div class="row2"><label>Année de référence<input name="annee" value="${esc(f.annee)}"></label><label>Fiabilité<select name="fiabilite">${opt(Object.fromEntries(Object.keys(FIAB).map(k=>[k,short(k)])),f.fiabilite)}</select></label></div>
+  <label>Payeur final<input name="payeur" value="${esc(f.payeur)}" list="payeurs"></label>
+  <datalist id="payeurs">${payerList().map(p=>`<option value="${esc(p)}">`).join("")}</datalist>
+  <label>Cadre juridique<textarea name="cadre">${esc(f.cadre)}</textarea></label>
+  <label>Précisions<textarea name="precisions" rows="4">${esc(f.precisions)}</textarea></label>
+  <label>Sources (une par ligne : libellé | url)<textarea name="sources">${esc((f.sources||[]).map(s=>s.label+(s.url?" | "+s.url:"")).join("\n"))}</textarea></label>
+  <div class="actions"><button class="btn primary" type="submit">Enregistrer</button><button class="btn" type="button" id="dupF">Dupliquer</button><button class="btn danger" type="button" id="delF">Supprimer</button><button class="btn" type="button" id="cancel">Fermer</button></div></form>`;
+}
+function nodeForm(n){
+  return `<h2>Modifier l'acteur</h2><form class="ed" id="nForm">
+  <label>Nom de l'acteur<input name="label" value="${esc(n.label)}" required></label>
+  <div class="row2"><label>Type<select name="type">${opt(TYPES,n.type)}</select></label><label>Colonne (0 à 3)<input name="col" type="number" min="0" max="6" value="${+n.col||0}"></label></div>
+  <label>Description<textarea name="desc" rows="4">${esc(n.desc)}</textarea></label>
+  <div class="actions"><button class="btn primary" type="submit">Enregistrer</button><button class="btn" type="button" id="upN">Monter</button><button class="btn" type="button" id="downN">Descendre</button><button class="btn danger" type="button" id="delN">Supprimer</button><button class="btn" type="button" id="cancel">Fermer</button></div></form>`;
+}
+function renderDrawer(){
+  const dr=document.getElementById("drawer");
+  if(!ui.edit){dr.innerHTML="";return}
+  const head=`<div class="actions" style="margin-bottom:14px"><button class="btn" id="addF">Ajouter un flux</button><button class="btn" id="addN">Ajouter un acteur</button></div>`;
+  let body=`<h2>Modifier les données</h2><p class="scope" style="font-size:13px;color:var(--muted)">Cliquez sur un flux ou un acteur du diagramme, ou sur une ligne du tableau. Les modifications restent dans ce navigateur ; utilisez Exporter pour les partager.</p>`;
+  if(ui.sel?.kind==="flow"&&flowById(ui.sel.id))body=flowForm(flowById(ui.sel.id));
+  if(ui.sel?.kind==="node"&&nodeById(ui.sel.id))body=nodeForm(nodeById(ui.sel.id));
+  dr.innerHTML=`<div class="drawer">${head}${body}</div>`;
+  const on=(id,fn)=>{const el=dr.querySelector("#"+id);if(el)el.onclick=fn};
+  on("cancel",()=>{ui.sel=null;refresh()});
+  on("addF",()=>{const n=data.flows.filter(f=>/^\d+$/.test(f.id)).reduce((m,f)=>Math.max(m,+f.id),0)+1;
+    data.flows.push({id:String(n),nom:"Nouveau flux",source:data.nodes[0].id,target:data.nodes[1].id,nature:"contrat",cadre:"",montant:null,affichage:20,annee:"",fiabilite:"nc",payeur:"",precisions:"",sources:[]});
+    ui.sel={kind:"flow",id:String(n)};commit()});
+  on("addN",()=>{let i=1;while(nodeById("acteur"+i))i++;data.nodes.push({id:"acteur"+i,label:"Nouvel acteur",type:"autre",col:3,desc:""});ui.sel={kind:"node",id:"acteur"+i};commit()});
+  const ff=dr.querySelector("#fForm");
+  if(ff){const f=flowById(ui.sel.id);
+    ff.onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(ff));
+      if(d.id!==f.id&&flowById(d.id)){alert("Ce numéro de flux existe déjà.");return}
+      if(d.source===d.target){alert("La source et la destination doivent être différentes.");return}
+      const old="f:"+f.id;
+      Object.assign(f,{...d,montant:d.montant===""?null:+d.montant,affichage:d.affichage===""?null:+d.affichage,
+        sources:d.sources.split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{const[a,...b]=l.split("|");const url=b.join("|").trim();return url?{label:a.trim(),url}:(/^https?:/.test(a.trim())?{label:a.trim(),url:a.trim()}:{label:a.trim()})})});
+      ui.pins=ui.pins.map(p=>p===old?"f:"+f.id:p);ui.sel={kind:"flow",id:f.id};commit()};
+    on("delF",()=>{if(!confirm(`Supprimer le flux ${f.id} ?`))return;data.flows=data.flows.filter(x=>x!==f);ui.sel=null;commit()});
+    on("dupF",()=>{let id=f.id+"bis";while(flowById(id))id+="'";data.flows.push({...clone(f),id,nom:f.nom+" (copie)"});ui.sel={kind:"flow",id};commit()});
+  }
+  const nfm=dr.querySelector("#nForm");
+  if(nfm){const n=nodeById(ui.sel.id);
+    nfm.onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(nfm));Object.assign(n,{label:d.label,type:d.type,col:+d.col||0,desc:d.desc});commit()};
+    const move=dir=>{const i=data.nodes.indexOf(n),j=i+dir;if(j<0||j>=data.nodes.length)return;[data.nodes[i],data.nodes[j]]=[data.nodes[j],data.nodes[i]];ui.offsets={};commit()};
+    on("upN",()=>move(-1));on("downN",()=>move(1));
+    on("delN",()=>{const k=data.flows.filter(f=>f.source===n.id||f.target===n.id).length;
+      if(!confirm(k?`Supprimer « ${n.label} » et ses ${k} flux ?`:`Supprimer « ${n.label} » ?`))return;
+      data.flows=data.flows.filter(f=>f.source!==n.id&&f.target!==n.id);data.nodes=data.nodes.filter(x=>x!==n);ui.sel=null;commit()});
+  }
+}
+
+/* ---------- Tableau ---------- */
+function renderTable(){
+  const key=ui.sort.k,dir=ui.sort.dir;
+  const val=f=>key==="route"?(nodeById(f.source)?.label||"")+(nodeById(f.target)?.label||""):key==="montant"?(hasAmt(f)?+f.montant:-1):f[key]??"";
+  const rows=[...data.flows].sort((a,b)=>{const x=val(a),y=val(b);return (typeof x==="number"?x-y:key==="id"?idCmp(x,y):String(x).localeCompare(String(y),"fr"))*dir});
+  document.getElementById("tbody").innerHTML=rows.map(f=>{
+    const off=ui.hidden.has(f.nature)||!inView(f);
+    return `<tr data-id="${esc(f.id)}" class="${off?"off":""}"><td>${esc(f.id)}</td><td>${esc(f.nom)}</td><td>${esc(nodeById(f.source)?.label||f.source)} → ${esc(nodeById(f.target)?.label||f.target)}</td>
+    <td><span class="dot" style="background:var(--n-${f.nature})"></span>${esc(NATURES[f.nature]||f.nature)}</td>
+    <td class="num">${approx(f)}${hasAmt(f)?nf.format(f.montant):"n.c."}</td><td>${esc(f.annee||"")}</td><td>${esc(short(f.fiabilite))}</td><td>${esc(f.payeur||"")}</td></tr>`}).join("");
+  document.querySelectorAll("#tbody tr").forEach(tr=>tr.onclick=()=>{clickFlow(tr.dataset.id);stage.scrollIntoView?.({block:"nearest",behavior:"smooth"})});
+}
+document.querySelectorAll("th[data-sort]").forEach(th=>th.onclick=()=>{const k=th.dataset.sort;ui.sort=ui.sort.k===k?{k,dir:-ui.sort.dir}:{k,dir:k==="montant"?-1:1};renderTable()});
+
+function refresh(){render();renderSide();renderPins();renderDrawer();renderTable()}
+function commit(){save();refresh()}
+
+/* ---------- Contrôles ---------- */
+const segs=(attr,key,reset)=>document.querySelectorAll(`[data-${attr}]`).forEach(b=>b.onclick=()=>{ui[key]=b.dataset[attr];if(reset)ui.offsets={};document.querySelectorAll(`[data-${attr}]`).forEach(x=>x.setAttribute("aria-pressed",x===b));refresh()});
+segs("view","view",true);segs("color","color",false);segs("scale","scale",true);
+document.getElementById("resetView").onclick=()=>{ui.offsets={};ui.pinPos={};render();renderPins();svg.transition().duration(300).call(zoom.transform,d3.zoomIdentity)};
+document.getElementById("clearPins").onclick=()=>{ui.pins=[];refresh()};
+document.getElementById("editToggle").onclick=e=>{ui.edit=!ui.edit;ui.sel=null;e.currentTarget.setAttribute("aria-pressed",ui.edit);document.getElementById("app").classList.toggle("edit-on",ui.edit);refresh()};
+document.getElementById("resetData").onclick=()=>{if(!confirm("Revenir aux données d'origine ? Vos modifications locales seront perdues (pensez à les exporter)."))return;data=clone(DEFAULT);ui.pins=[];ui.sel=null;ui.offsets={};commit()};
+
+const dlg=document.getElementById("dlg"),dt=document.getElementById("dlgText"),dm=document.getElementById("dlgMsg"),dok=document.getElementById("dlgOk");
+document.getElementById("dlgClose").onclick=()=>dlg.close();
+document.getElementById("exportBtn").onclick=()=>{
+  document.getElementById("dlgTitle").textContent="Exporter les données";dm.textContent="Copiez ce JSON pour le conserver ou le partager. Il pourra être réimporté ici.";
+  dt.value=JSON.stringify(data,null,2);dt.readOnly=true;dok.textContent="Copier";
+  dok.onclick=async()=>{try{await navigator.clipboard.writeText(dt.value);dm.textContent="Copié dans le presse-papiers."}catch(e){dt.select();document.execCommand("copy");dm.textContent="Copié."}};
+  dlg.showModal()};
+document.getElementById("importBtn").onclick=()=>{
+  document.getElementById("dlgTitle").textContent="Importer des données";dm.textContent="Collez un JSON exporté depuis cette page. Il remplacera les données actuelles.";
+  dt.value="";dt.readOnly=false;dok.textContent="Importer";
+  dok.onclick=()=>{try{const d=JSON.parse(dt.value);if(!Array.isArray(d.nodes)||!Array.isArray(d.flows))throw new Error("Le JSON doit contenir les tableaux « nodes » et « flows ».");
+    data=d;ui.pins=[];ui.sel=null;ui.offsets={};commit();dlg.close()}catch(err){dm.textContent="Import impossible : "+err.message}};
+  dlg.showModal()};
+
+refresh();
+</script>
+</body>
+</html>
